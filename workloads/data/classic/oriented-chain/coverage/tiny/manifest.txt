@@ -1,0 +1,9 @@
+mini-linq-dataset	2
+suite	classic
+case	oriented-chain
+scenario	coverage
+scale	tiny
+seed	11949980703157358401
+generator-version	2
+relations	1
+relation	Edge	2	100	96

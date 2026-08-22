@@ -1,0 +1,12 @@
+mini-linq-dataset	2
+suite	classic
+case	fact-star
+scenario	empty-input
+scale	tiny
+seed	9086097333376654790
+generator-version	2
+relations	4
+relation	Fact	3	100	96
+relation	DimA	2	100	96
+relation	DimB	2	100	96
+relation	DimC	2	0	0

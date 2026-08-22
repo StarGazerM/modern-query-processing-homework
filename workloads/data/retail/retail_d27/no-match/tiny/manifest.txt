@@ -1,0 +1,13 @@
+mini-linq-dataset	2
+suite	retail
+case	retail_d27
+scenario	no-match
+scale	tiny
+seed	2748720055279063986
+generator-version	2
+relations	5
+relation	RetailD27StoreSales	5	100	96
+relation	RetailD27DateDim	1	100	96
+relation	RetailD27Item	1	100	96
+relation	RetailD27Store	1	100	96
+relation	RetailD27CustomerDemo	1	100	96

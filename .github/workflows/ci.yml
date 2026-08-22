@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Test workspace
+        run: cargo test --workspace --locked
+      - name: Check Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test teaching tool
+        run: cargo test --manifest-path xtask/Cargo.toml --locked
+      - name: Check teaching tool with Clippy
+        run: cargo clippy --manifest-path xtask/Cargo.toml --all-targets --locked -- -D warnings

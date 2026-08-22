@@ -1,0 +1,22 @@
+[package]
+name = "mini-linq"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[features]
+# Enables the optional Ascent-style negation/aggregation endpoint test only.
+hw4 = []
+# Lets the workload-only procedural macro run the completed R1 passes. The
+# workload crate leaves this off in the student-safe default build.
+compiled-workloads = []
+
+[dependencies]
+cq-compiler.workspace = true
+cq-ir.workspace = true
+quote.workspace = true
+syn.workspace = true

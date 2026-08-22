@@ -1,0 +1,15 @@
+mini-linq-dataset	2
+suite	classic
+case	barbell
+scenario	empty-input
+scale	tiny
+seed	12949963942866908855
+generator-version	2
+relations	7
+relation	R	2	100	96
+relation	S	2	100	96
+relation	T	2	100	96
+relation	Bridge	2	100	96
+relation	U	2	100	96
+relation	V	2	100	96
+relation	W	2	0	0

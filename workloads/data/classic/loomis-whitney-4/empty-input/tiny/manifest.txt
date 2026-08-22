@@ -1,0 +1,12 @@
+mini-linq-dataset	2
+suite	classic
+case	loomis-whitney-4
+scenario	empty-input
+scale	tiny
+seed	3086791906749652146
+generator-version	2
+relations	4
+relation	ABC	3	100	96
+relation	BCD	3	100	96
+relation	ACD	3	100	96
+relation	ABD	3	0	0

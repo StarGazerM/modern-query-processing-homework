@@ -1,0 +1,12 @@
+mini-linq-dataset	2
+suite	classic
+case	spade
+scenario	coverage
+scale	tiny
+seed	4853739700931358898
+generator-version	2
+relations	4
+relation	R	2	100	96
+relation	S	2	100	96
+relation	T	2	100	96
+relation	H	2	100	96

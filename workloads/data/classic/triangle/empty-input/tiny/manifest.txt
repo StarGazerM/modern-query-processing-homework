@@ -1,0 +1,11 @@
+mini-linq-dataset	2
+suite	classic
+case	triangle
+scenario	empty-input
+scale	tiny
+seed	15885398087392196613
+generator-version	2
+relations	3
+relation	R	2	100	96
+relation	S	2	100	96
+relation	T	2	0	0

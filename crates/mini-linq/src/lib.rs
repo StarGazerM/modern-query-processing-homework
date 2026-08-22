@@ -1,0 +1,133 @@
+//! User-facing macros for the MiniLinq teaching compiler.
+//!
+//! Each macro parses its exact source IR and routes that typed value to the
+//! corresponding compiler pass. Syntax errors become Rust compile errors;
+//! semantic well-formedness belongs to the configurable pass contracts.
+
+use cq_ir::{cq, index_requirements, iterator_pipeline, relational_plan, rust_access_plan};
+use proc_macro::TokenStream;
+use quote::quote;
+
+/// Own one workload query as real Rust macro input.
+///
+/// The default expansion exposes only the typed-CQ factory used by the catalog,
+/// so the workload crate remains usable before students complete R1. The
+/// `compiled-workloads` feature additionally emits the complete generated query
+/// program through the same typed passes as [`mini_linq`].
+#[proc_macro]
+pub fn workload_query(input: TokenStream) -> TokenStream {
+    let source_text = input.to_string();
+    let source: cq::Module = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let catalog = quote! {
+        pub(crate) const RUST_PATH: &str = file!();
+        pub(crate) const SOURCE: &str = #source_text;
+
+        pub(crate) fn module() -> ::syn::Result<::cq_ir::cq::Module> {
+            ::syn::parse_str(SOURCE)
+        }
+    };
+
+    #[cfg(feature = "compiled-workloads")]
+    {
+        let logical = match cq_compiler::compile_cq(&source) {
+            Ok(logical) => logical,
+            Err(error) => return error.into_compile_error().into(),
+        };
+        let requirements = match cq_compiler::compile_relational_plan(&logical) {
+            Ok(requirements) => requirements,
+            Err(error) => return error.into_compile_error().into(),
+        };
+        let program = match cq_compiler::compile_index_requirements(&requirements) {
+            Ok(program) => program,
+            Err(error) => return error.into_compile_error().into(),
+        };
+
+        quote!(#catalog #program).into()
+    }
+
+    #[cfg(not(feature = "compiled-workloads"))]
+    {
+        let _ = source;
+        catalog.into()
+    }
+}
+
+/// Parse CQ syntax and route it through the typed CQ compiler pass.
+#[proc_macro]
+pub fn mini_linq(input: TokenStream) -> TokenStream {
+    let source: cq::Module = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let target = match cq_compiler::compile_cq(&source) {
+        Ok(target) => target,
+        Err(error) => return error.into_compile_error().into(),
+    };
+
+    quote!(::mini_linq::relational_plan! { #target }).into()
+}
+
+/// Parse RelationalPlan syntax and add its exact base-relation index overlay.
+#[proc_macro]
+pub fn relational_plan(input: TokenStream) -> TokenStream {
+    let source: relational_plan::Module = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let target = match cq_compiler::compile_relational_plan(&source) {
+        Ok(target) => target,
+        Err(error) => return error.into_compile_error().into(),
+    };
+
+    quote!(::mini_linq::index_requirements! { #target }).into()
+}
+
+/// Parse IndexRequirements syntax and route it through the typed physical pass.
+#[proc_macro]
+pub fn index_requirements(input: TokenStream) -> TokenStream {
+    let source: index_requirements::Module = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let target = match cq_compiler::compile_index_requirements(&source) {
+        Ok(target) => target,
+        Err(error) => return error.into_compile_error().into(),
+    };
+
+    quote!(#target).into()
+}
+
+/// Expose the left-deep iterator operators of an annotated Rust access plan.
+///
+/// This stage produces an independently invocable [`iterator_pipeline!`]
+/// macro rather than emitting Rust directly, so each binary join and its
+/// intermediate binding remain visible in macro expansion.
+#[proc_macro]
+pub fn pull(input: TokenStream) -> TokenStream {
+    let source: rust_access_plan::Plan = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let target = cq_compiler::compile_pull(&source);
+
+    quote!(::mini_linq::iterator_pipeline! { #target }).into()
+}
+
+/// Lower an explicit named physical plan to its actual ordinary-Rust AST.
+///
+/// The compiler writes one standard iterator-adapter local per named operator.
+/// This proc-macro performs no further code generation: quoting the returned
+/// [`syn::Expr`] is its direct `ToTokens` representation.
+#[proc_macro]
+pub fn iterator_pipeline(input: TokenStream) -> TokenStream {
+    let source: iterator_pipeline::Pipeline = match syn::parse(input) {
+        Ok(source) => source,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let target = cq_compiler::compile_iterator_pipeline(&source);
+
+    quote!(#target).into()
+}

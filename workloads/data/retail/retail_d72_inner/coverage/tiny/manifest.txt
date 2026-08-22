@@ -1,0 +1,15 @@
+mini-linq-dataset	2
+suite	retail
+case	retail_d72_inner
+scenario	coverage
+scale	tiny
+seed	15659745746908195735
+generator-version	2
+relations	7
+relation	RetailD72InnerCatalogSales	6	100	96
+relation	RetailD72InnerDateDim	2	100	96
+relation	RetailD72InnerInventory	3	100	96
+relation	RetailD72InnerWarehouse	1	100	96
+relation	RetailD72InnerItem	1	100	96
+relation	RetailD72InnerCustomerDemo	1	100	96
+relation	RetailD72InnerHouseholdDemo	1	100	96

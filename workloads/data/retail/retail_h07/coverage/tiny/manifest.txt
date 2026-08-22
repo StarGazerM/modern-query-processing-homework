@@ -1,0 +1,13 @@
+mini-linq-dataset	2
+suite	retail
+case	retail_h07
+scenario	coverage
+scale	tiny
+seed	10297997678914138944
+generator-version	2
+relations	5
+relation	RetailH07Supplier	2	100	96
+relation	RetailH07Lineitem	4	100	96
+relation	RetailH07Orders	2	100	96
+relation	RetailH07Customer	2	100	96
+relation	RetailH07Nation	2	100	96

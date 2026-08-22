@@ -1,0 +1,14 @@
+mini-linq-dataset	2
+suite	retail
+case	retail_h09
+scenario	empty-input
+scale	tiny
+seed	10298013072076933898
+generator-version	2
+relations	6
+relation	RetailH09Lineitem	4	100	96
+relation	RetailH09PartSupp	2	100	96
+relation	RetailH09Part	1	100	96
+relation	RetailH09Supplier	2	100	96
+relation	RetailH09Orders	2	100	96
+relation	RetailH09Nation	2	0	0

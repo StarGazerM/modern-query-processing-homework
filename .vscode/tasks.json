@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "MiniLinq: Explain query",
+            "type": "process",
+            "command": "cargo",
+            "args": [
+                "xtask",
+                "explain",
+                "${input:miniLinqExplainCase}",
+                "--through",
+                "${input:miniLinqExplainStage}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "miniLinqExplainCase",
+            "type": "promptString",
+            "description": "Catalog query case",
+            "default": "triangle"
+        },
+        {
+            "id": "miniLinqExplainStage",
+            "type": "pickString",
+            "description": "Stop after compiler stage",
+            "options": [
+                "cq",
+                "relational-plan",
+                "index-requirements",
+                "rust-access-plan",
+                "iterator-pipeline",
+                "final-rust"
+            ],
+            "default": "relational-plan"
+        }
+    ]
+}

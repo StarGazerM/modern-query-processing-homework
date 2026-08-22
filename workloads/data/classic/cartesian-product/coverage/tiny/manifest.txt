@@ -1,0 +1,10 @@
+mini-linq-dataset	2
+suite	classic
+case	cartesian-product
+scenario	coverage
+scale	tiny
+seed	6618855964102362335
+generator-version	2
+relations	2
+relation	A	1	67	64
+relation	B	2	67	64

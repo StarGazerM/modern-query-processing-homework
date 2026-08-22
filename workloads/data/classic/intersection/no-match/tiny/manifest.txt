@@ -1,0 +1,10 @@
+mini-linq-dataset	2
+suite	classic
+case	intersection
+scenario	no-match
+scale	tiny
+seed	8593514854797484840
+generator-version	2
+relations	2
+relation	Left	1	100	96
+relation	Right	1	100	96
