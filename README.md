@@ -4,6 +4,11 @@ This is the student code repository for **Modern Query Processing, Fall 2026**.
 The project follows one query from a conjunctive query (CQ), through typed
 intermediate representations, to executable Rust.
 
+Queries, relational outputs, access plans, and iterator returns end with `;`.
+The earlier period terminator is rejected. Syntax types derive parsing and
+token emission; declarations and definitions declare their repetition on the
+corresponding fields.
+
 - [Course website](https://pldi.me/modern-query-processing-notes/)
 - [Project contract](https://pldi.me/modern-query-processing-notes/project.html)
 - [Homework repository](https://github.com/StarGazerM/modern-query-processing-homework)

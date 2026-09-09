@@ -159,7 +159,7 @@ pub fn compile_pull(source: &rust_access_plan::Plan) -> iterator_pipeline::Pipel
 
     syn::parse2(quote! {
         #(#definitions)*
-        return #distinct_stream.
+        return #distinct_stream;
     })
     .expect("a well-formed RustAccessPlan must lower to an IteratorPipeline")
 }

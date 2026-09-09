@@ -431,14 +431,14 @@ fn format_cq_program(program: &cq::Program) -> String {
         .map(compact_tokens)
         .collect::<Vec<_>>();
     let query = if clauses.len() == 1 {
-        format!("{} :- {}.", format_atom(&program.query.head), clauses[0],)
+        format!("{} :- {};", format_atom(&program.query.head), clauses[0],)
     } else {
         let mut lines = clauses
             .iter()
             .enumerate()
             .map(|(position, clause)| {
                 let terminator = if position + 1 == clauses.len() {
-                    "."
+                    ";"
                 } else {
                     ","
                 };
@@ -465,7 +465,7 @@ fn format_relational_block(plan: &relational_plan::Plan) -> String {
         )
     });
     let output = format!(
-        "output {} as {}.",
+        "output {} as {};",
         plan.output.input,
         format_atom(&plan.output.head),
     );
@@ -683,7 +683,7 @@ fn format_rust_access_plan(plan: &rust_access_plan::Plan) -> String {
     );
     for (position, clause) in plan.body.iter().enumerate() {
         let terminator = if position + 1 == plan.body.len() {
-            "."
+            ";"
         } else {
             ","
         };
@@ -769,7 +769,7 @@ fn format_iterator_pipeline(plan: &iterator_pipeline::Pipeline) -> String {
             }
         }
     }
-    lines.push(format!("return {}.", plan.return_stream.stream));
+    lines.push(format!("return {};", plan.return_stream.stream));
     lines.join("\n")
 }
 
@@ -1062,6 +1062,28 @@ mod tests {
     }
 
     #[test]
+    fn formatted_query_and_access_bodies_roundtrip_with_semicolons() {
+        for body in ["R(x)", "R(x), R(x)"] {
+            let program: cq::Program = syn::parse_str(&format!(
+                "struct P; relation R(a:i32); answer(x) :- {body};"
+            ))
+            .unwrap();
+            assert_eq!(
+                syn::parse_str::<cq::Program>(&format_cq_program(&program)).unwrap(),
+                program
+            );
+        }
+        let plan: rust_access_plan::Plan = syn::parse_str(
+            "answer(x) => ((x,)) :- R(x) => for (x,) in (rows.iter()), R(x) => if (x.is_positive());",
+        )
+        .unwrap();
+        assert_eq!(
+            syn::parse_str::<rust_access_plan::Plan>(&format_rust_access_plan(&plan)).unwrap(),
+            plan
+        );
+    }
+
+    #[test]
     fn options_require_one_known_shape_and_default_to_final_rust() {
         let options = Options::parse(vec!["triangle".to_owned()]).unwrap();
         assert_eq!(options.case, "triangle");
@@ -1199,7 +1221,7 @@ mod tests {
         let relational =
             fs::read_to_string(directory.join(Stage::RelationalPlan.file_name())).unwrap();
         assert!(relational.contains("\n    relational {\n        r0"));
-        assert!(relational.contains("\n        output r5 as triangle(x, y, z)."));
+        assert!(relational.contains("\n        output r5 as triangle(x, y, z);"));
         assert!(relational.contains("natural_join r0 with r1"));
         assert!(relational.contains("natural_join r2 with r3"));
 
@@ -1224,7 +1246,7 @@ mod tests {
             fn query() {
                 unrelated!();
                 ::mini_linq::pull! {
-                    answer(x) => (x) :- R(x) => for (x,) in ([1].iter()).
+                    answer(x) => (x) :- R(x) => for (x,) in ([1].iter());
                 }
             }
         })
@@ -1249,10 +1271,10 @@ mod tests {
         let mut file: syn::File = syn::parse2(quote! {
             fn query() {
                 ::mini_linq::pull! {
-                    answer(x) => (x) :- R(x) => for x in ([1].iter()).
+                    answer(x) => (x) :- R(x) => for x in ([1].iter());
                 };
                 ::mini_linq::pull! {
-                    answer(x) => (x) :- R(x) => for x in ([1].iter()).
+                    answer(x) => (x) :- R(x) => for x in ([1].iter());
                 }
             }
         })
