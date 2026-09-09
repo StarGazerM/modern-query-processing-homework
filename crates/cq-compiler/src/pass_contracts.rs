@@ -23,7 +23,9 @@ pub(crate) fn relational_plan_is_exact(
     let mut next_result = 0usize;
 
     for item in &source.program.query.body {
-        let cq::BodyItem::Positive { atom } = item;
+        let cq::BodyItem::Positive { atom } = item else {
+            return false;
+        };
         let Some(rename_definition) = definitions.next() else {
             return false;
         };
@@ -73,7 +75,7 @@ pub(crate) fn relational_plan_is_exact(
             relational_plan::Operator::Project(project)
                 if symbol(&project.input) == input
                     && symbols(&project.attributes).into_iter().collect::<BTreeSet<_>>()
-                        == symbols(&source.program.query.head.variables)
+                        == symbols(source.program.query.head.variables())
                             .into_iter()
                             .collect::<BTreeSet<_>>()
         )
@@ -98,12 +100,12 @@ fn rename_is_exact(
         return false;
     };
     rename.mapping.len() == declaration.columns.len()
-        && rename.mapping.len() == atom.variables.len()
+        && rename.mapping.len() == atom.args.len()
         && rename
             .mapping
             .iter()
             .zip(&declaration.columns)
-            .zip(&atom.variables)
+            .zip(atom.variables())
             .all(|((mapping, column), variable)| {
                 symbol(&mapping.source) == symbol(&column.name)
                     && symbol(&mapping.target) == symbol(variable)
@@ -589,13 +591,13 @@ fn symbol(identifier: &syn::Ident) -> String {
     cq_ir::symbol_name(identifier)
 }
 
-fn symbols(identifiers: &cq_ir::CommaList<syn::Ident>) -> Vec<String> {
-    identifiers.iter().map(symbol).collect()
+fn symbols<'a>(identifiers: impl IntoIterator<Item = &'a syn::Ident>) -> Vec<String> {
+    identifiers.into_iter().map(symbol).collect()
 }
 
 fn same_atom(left: &cq::Atom, right: &cq::Atom) -> bool {
     symbol(&left.relation) == symbol(&right.relation)
-        && symbols(&left.variables) == symbols(&right.variables)
+        && symbols(left.variables()) == symbols(right.variables())
 }
 
 #[cfg(test)]

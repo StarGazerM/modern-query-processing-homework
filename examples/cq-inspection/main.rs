@@ -15,7 +15,7 @@ fn main() {
     println!(
         "result: {}/{}",
         symbol_name(&source.program.query.head.relation),
-        source.program.query.head.variables.len()
+        source.program.query.head.args.len()
     );
 
     for (position, item) in source.program.query.body.iter().enumerate() {
@@ -24,8 +24,7 @@ fn main() {
             continue;
         };
         let variables = atom
-            .variables
-            .iter()
+            .variables()
             .map(symbol_name)
             .collect::<Vec<_>>()
             .join(", ");

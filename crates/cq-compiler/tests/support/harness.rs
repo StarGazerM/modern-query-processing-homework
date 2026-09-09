@@ -445,10 +445,9 @@ fn assert_full_key_indexes_supply_scans_without_row_copies(
     let mut coalesced_inputs = Vec::<usize>::new();
 
     for item in &source.relational_plan.program.query.body {
-        let cq::BodyItem::Positive { atom } = item;
+        let atom = item.positive_atom().expect("positive fixture");
         let is_empty_key_scan = atom
-            .variables
-            .iter()
+            .variables()
             .all(|variable| !bound.contains(&cq_ir::symbol_name(variable)));
         let relation_name = cq_ir::symbol_name(&atom.relation);
         let input_number = source
@@ -466,7 +465,7 @@ fn assert_full_key_indexes_supply_scans_without_row_copies(
         if is_empty_key_scan && has_full_key_index && !coalesced_inputs.contains(&input_number) {
             coalesced_inputs.push(input_number);
         }
-        for variable in &atom.variables {
+        for variable in atom.variables() {
             let variable = cq_ir::symbol_name(variable);
             if !bound.contains(&variable) {
                 bound.push(variable);
@@ -789,6 +788,7 @@ fn input_has_physical_consumer(source: &index_requirements::Module, input_index:
         .iter()
         .any(|item| match item {
             cq::BodyItem::Positive { atom } => cq_ir::symbol_name(&atom.relation) == relation_name,
+            _ => false,
         })
         || source
             .indexes
@@ -826,17 +826,17 @@ fn result_row_type(source: &index_requirements::Module) -> syn::Type {
         .collect::<BTreeMap<_, _>>();
     let mut variables = BTreeMap::<String, syn::Type>::new();
     for item in &program.query.body {
-        let cq::BodyItem::Positive { atom } = item;
+        let atom = item.positive_atom().expect("positive fixture");
         let input = relations
             .get(&cq_ir::symbol_name(&atom.relation))
             .expect("well-formed body relation is declared");
-        for (variable, column) in atom.variables.iter().zip(&input.columns) {
+        for (variable, column) in atom.variables().zip(&input.columns) {
             variables
                 .entry(cq_ir::symbol_name(variable))
                 .or_insert_with(|| column.ty.clone());
         }
     }
-    let output_types = program.query.head.variables.iter().map(|variable| {
+    let output_types = program.query.head.variables().map(|variable| {
         variables
             .get(&cq_ir::symbol_name(variable))
             .expect("well-formed result variable is bound")

@@ -65,7 +65,7 @@ Program           ::= RustVisibility? "struct" Ident ";"
 RelationDecl      ::= Ident "(" ColumnDecl ("," ColumnDecl)* [","] ")" ";"
 ColumnDecl        ::= Ident ":" RustType
 Query             ::= Atom ":-" Atom ("," Atom)* ";"
-Atom              ::= Ident "(" Ident ("," Ident)* [","] ")"
+Atom              ::= Ident "(" [RustExpr ("," RustExpr)* [","]] ")"
 
 RelationalModule  ::= Program "relational" "{" RelationalPlan "}"
 RelationalPlan    ::= RelDefinition* RelOutput
@@ -101,6 +101,26 @@ IterOperator      ::= "unit" "yield" RustExpr
 IterReturn        ::= "return" IterId ";"
 ```
 
+The table above describes the basic semantic checkpoint. The supplied CQ
+parser also accepts the following body forms, with Rust leaves parsed by Syn:
+
+```ebnf
+Query             ::= Atom ":-" BodyItem ("," BodyItem)* ";"
+BodyItem          ::= Atom | "if" RustExpr
+                    | "let" RustPat [":" RustType] "=" RustExpr
+                    | "!" Atom | Aggregate
+Aggregate         ::= "agg" RustPat "=" Aggregator
+                      "(" [Ident ("," Ident)* [","]] ")" "in" Atom
+Aggregator        ::= RustPath | "(" RustExpr ")"
+```
+
+The basic CQ contract accepts positive atoms with distinct bare variables;
+parsing a larger surface does not implement its semantics. The
+[Rust-expression helpers](RUST-EXPRESSION-HELPERS.md) provide lexical free names
+and pattern bindings for students extending those contracts and passes.
+Aggregate arguments are local binder names; Rust expressions occur in its
+parenthesized aggregator and input atom arguments.
+
 MiniLinq deliberately uses [Ascent's typed relation-declaration
 shape](https://docs.rs/crate/ascent/latest). In this one-rule query language,
 every declared relation is an extensional input: the declaration supplies its
@@ -130,7 +150,7 @@ one occurrence by mapping every declared source attribute exactly once to a
 distinct query variable. `natural_join` infers its shared attributes from the
 two headings and returns the heading union. It is still used when the right heading is wholly shared.
 `project` keeps a distinct subset of attributes. Ordered result tuple layout
-belongs only to the separate `output result as head.` metadata. Baseline atoms
+belongs only to the separate `output result as head;` metadata. Baseline atoms
 contain distinct variables and no constants, so this fragment does not yet
 need Selection; add it only with that source-language extension.
 

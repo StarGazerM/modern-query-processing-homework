@@ -346,7 +346,7 @@ fn checked_in_tiny_scenarios_are_an_exact_fresh_generator_bijection() {
 
     for case in all_cases() {
         let module = case.module().unwrap();
-        let output_arity = module.program.query.head.variables.len();
+        let output_arity = module.program.query.head.args.len();
         for scenario in Scenario::ALL {
             let config = GenerationConfig {
                 scenario,

@@ -135,11 +135,17 @@ fn check_plan(query: &Plan) -> syn::Result<()> {
             cq::BodyItem::Positive { atom } => {
                 check_positive_clause(position, atom, &clause.access, &mut bound)?;
             }
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &clause.item,
+                    "this clause requires the extended access contract",
+                ));
+            }
         }
     }
 
-    check_distinct_variables("result atom", &query.head.atom.variables)?;
-    for variable in &query.head.atom.variables {
+    check_distinct_variables("result atom", &query.head.atom.args)?;
+    for variable in query.head.atom.variables() {
         if !bound.contains(&symbol_name(variable)) {
             return Err(syn::Error::new_spanned(
                 variable,
@@ -157,11 +163,10 @@ fn check_positive_clause(
     access: &RustAccess,
     bound: &mut BTreeSet<String>,
 ) -> syn::Result<()> {
-    check_distinct_variables(&format!("body atom `{}`", atom.relation), &atom.variables)?;
+    check_distinct_variables(&format!("body atom `{}`", atom.relation), &atom.args)?;
 
     let fresh = atom
-        .variables
-        .iter()
+        .variables()
         .filter(|variable| !bound.contains(&symbol_name(variable)))
         .collect::<Vec<_>>();
 
@@ -190,7 +195,7 @@ fn check_positive_clause(
         (true, RustAccess::If { .. }) => {}
     }
 
-    bound.extend(atom.variables.iter().map(symbol_name));
+    bound.extend(atom.variables().map(symbol_name));
     Ok(())
 }
 
@@ -238,7 +243,7 @@ fn simple_pattern_ident(pattern: &Pat) -> Option<&Ident> {
     .then_some(&pattern.ident)
 }
 
-fn check_distinct_variables(context: &str, variables: &CommaList<Ident>) -> syn::Result<()> {
+fn check_distinct_variables(context: &str, variables: &CommaList<syn::Expr>) -> syn::Result<()> {
     if variables.is_empty() {
         return Err(syn::Error::new_spanned(
             variables,
@@ -247,7 +252,13 @@ fn check_distinct_variables(context: &str, variables: &CommaList<Ident>) -> syn:
     }
 
     let mut seen = BTreeSet::new();
-    for variable in variables {
+    for argument in variables {
+        let variable = cq::rust::variable(argument).ok_or_else(|| {
+            syn::Error::new_spanned(
+                argument,
+                "computed arguments require the extended access contract",
+            )
+        })?;
         if !seen.insert(symbol_name(variable)) {
             return Err(syn::Error::new_spanned(
                 variable,

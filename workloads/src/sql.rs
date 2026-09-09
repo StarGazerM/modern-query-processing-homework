@@ -51,7 +51,7 @@ pub fn translate(module: &cq::Module) -> Result<String, SqlError> {
     let mut bindings = BTreeMap::<String, Binding>::new();
     let mut equalities = Vec::new();
     for (atom_index, atom) in atoms.iter().enumerate() {
-        for (column, variable) in atom.variables.iter().enumerate() {
+        for (column, variable) in atom.variables().enumerate() {
             let name = symbol_name(variable);
             let current = Binding {
                 atom: atom_index,
@@ -70,7 +70,7 @@ pub fn translate(module: &cq::Module) -> Result<String, SqlError> {
     }
 
     output.push_str("\nSELECT DISTINCT\n");
-    for (position, variable) in module.program.query.head.variables.iter().enumerate() {
+    for (position, variable) in module.program.query.head.variables().enumerate() {
         if position != 0 {
             output.push_str(",\n");
         }
@@ -110,7 +110,7 @@ pub fn translate(module: &cq::Module) -> Result<String, SqlError> {
     }
 
     output.push_str("\nORDER BY ");
-    for position in 1..=module.program.query.head.variables.len() {
+    for position in 1..=module.program.query.head.args.len() {
         if position != 1 {
             output.push_str(", ");
         }

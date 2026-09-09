@@ -299,8 +299,7 @@ fn check_plan(module: &Module) -> syn::Result<()> {
         .plan
         .output
         .head
-        .variables
-        .iter()
+        .variables()
         .map(symbol_name)
         .collect::<BTreeSet<_>>();
     if output_attributes != output.heading {
@@ -391,12 +390,8 @@ fn earlier_relation<'a>(
 
 fn check_output_head(expected: &cq::Atom, actual: &cq::Atom) -> syn::Result<()> {
     let same_relation = symbol_name(&expected.relation) == symbol_name(&actual.relation);
-    let expected_variables = expected
-        .variables
-        .iter()
-        .map(symbol_name)
-        .collect::<Vec<_>>();
-    let actual_variables = actual.variables.iter().map(symbol_name).collect::<Vec<_>>();
+    let expected_variables = expected.variables().map(symbol_name).collect::<Vec<_>>();
+    let actual_variables = actual.variables().map(symbol_name).collect::<Vec<_>>();
     if same_relation && expected_variables == actual_variables {
         return Ok(());
     }

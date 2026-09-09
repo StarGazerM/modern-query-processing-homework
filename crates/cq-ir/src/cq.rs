@@ -1,3 +1,5 @@
+pub mod rust;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use syn::{Ident, Token, Type, Visibility, token};
@@ -60,7 +62,7 @@ impl RelationDecl {
     }
 }
 
-/// One positive conjunctive query, with a nonempty syntactic body.
+/// One query, with a nonempty syntactic body.
 ///
 /// ```text
 /// Query ::= Atom ":-" BodyItem ("," BodyItem)* ";"
@@ -75,31 +77,112 @@ pub struct Query {
     pub semi_token: Token![;],
 }
 
-/// One source-ordered logical body clause.
-///
-/// The baseline language has only positive atoms. Keeping the occurrence in a
-/// nominal enum lets later source-language extensions add clause forms without
-/// replacing the query parser or creating a sibling query language.
+/// One clause with Rust syntax preserved for later analysis.
 ///
 /// ```text
-/// BodyItem ::= Atom
+/// BodyItem ::= Atom | "if" RustExpr | "let" RustPat [":" RustType] "=" RustExpr
+///            | "!" Atom | "agg" RustPat "=" Aggregator "(" [Ident ("," Ident)*] ")" "in" Atom
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
 pub enum BodyItem {
-    // OPTIONAL HW4 — STUDENT 1/6 (IR): add the more-specific Ascent-style
-    // Negation and Aggregate variants *before* this positive-atom fallback,
-    // plus their nominal PatternAtom and PatternTerm syntax objects. `agg` is
-    // also an identifier token, so enum parse order matters. Update this
-    // file's BodyItem/Query/Module EBNF and examples with the grammar. Follow
-    // doc/HW4-OPTIONAL.md exactly.
+    #[parse(peek = Token![if])]
+    Filter(Filter),
+    #[parse(peek = Token![let])]
+    Let(Box<Let>),
+    #[parse(peek = Token![!])]
+    Negation(Negation),
+    #[parse(peek = kw::agg)]
+    Aggregate(Box<Aggregate>),
     #[parse(peek = Ident)]
     Positive { atom: Atom },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub struct Filter {
+    pub if_token: Token![if],
+    pub condition: syn::Expr,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub struct Let {
+    pub let_token: Token![let],
+    #[parse(syn::Pat::parse_single)]
+    pub pattern: syn::Pat,
+    #[syn(optional, peek = Token![:])]
+    pub annotation: Option<TypeAnnotation>,
+    pub eq_token: Token![=],
+    pub expression: syn::Expr,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub struct TypeAnnotation {
+    pub colon_token: Token![:],
+    pub ty: Type,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub struct Negation {
+    pub not_token: Token![!],
+    pub atom: Atom,
+}
+
+/// The names in `arguments` are aggregate-local binders, as in Ascent.
+/// Rust expressions occur in the aggregator and the input atom's arguments.
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub struct Aggregate {
+    pub agg_token: kw::agg,
+    #[parse(syn::Pat::parse_multi)]
+    pub pattern: syn::Pat,
+    pub eq_token: Token![=],
+    pub aggregator: Aggregator,
+    #[syn(parenthesized)]
+    pub arguments_paren: token::Paren,
+    #[syn(in = arguments_paren)]
+    #[parse(CommaList::parse_terminated)]
+    pub arguments: CommaList<Ident>,
+    pub in_token: Token![in],
+    pub atom: Atom,
+}
+
+/// `sum(value)` or `(make_aggregator(config))(value)`.
+#[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
+pub enum Aggregator {
+    #[parse(peek = token::Paren)]
+    Expression {
+        #[syn(parenthesized)]
+        paren_token: token::Paren,
+        #[syn(in = paren_token)]
+        expression: syn::Expr,
+    },
+    Path {
+        path: syn::Path,
+    },
+}
+
+impl BodyItem {
+    pub fn atom(&self) -> Option<&Atom> {
+        match self {
+            Self::Positive { atom } => Some(atom),
+            _ => None,
+        }
+    }
+
+    /// The supplied basic contracts cover positive atoms. Students extend
+    /// their semantic domain without replacing this shared syntax grammar.
+    pub fn positive_atom(&self) -> syn::Result<&Atom> {
+        self.atom().ok_or_else(|| {
+            syn::Error::new_spanned(
+                self,
+                "this clause requires the extended CQ semantic contract",
+            )
+        })
+    }
 }
 
 /// A relation name applied to a possibly empty, optionally trailing-comma list.
 ///
 /// ```text
-/// Atom ::= Ident "(" [Ident ("," Ident)* [","]] ")"
+/// Atom ::= Ident "(" [RustExpr ("," RustExpr)* [","]] ")"
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, syn_derive::Parse, syn_derive::ToTokens)]
 pub struct Atom {
@@ -108,7 +191,15 @@ pub struct Atom {
     pub paren_token: token::Paren,
     #[syn(in = paren_token)]
     #[parse(CommaList::parse_terminated)]
-    pub variables: CommaList<Ident>,
+    pub args: CommaList<syn::Expr>,
+}
+
+impl Atom {
+    /// Bare logical-variable arguments only; use `rust::free_variables` for
+    /// expression dependencies. This iterator does not inspect computations.
+    pub fn variables(&self) -> impl Iterator<Item = &Ident> {
+        self.args.iter().filter_map(rust::variable)
+    }
 }
 
 /// A complete positive conjunctive-query language object.
@@ -189,12 +280,18 @@ fn check_query(schema: &BTreeMap<String, &RelationDecl>, query: &Query) -> syn::
         match item {
             BodyItem::Positive { atom } => {
                 check_input_atom(schema, atom)?;
-                body_variables.extend(atom.variables.iter().map(symbol_name));
+                body_variables.extend(atom.variables().map(symbol_name));
+            }
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    item,
+                    "this clause requires the extended CQ semantic contract",
+                ));
             }
         }
     }
 
-    for variable in &query.head.variables {
+    for variable in query.head.variables() {
         if !body_variables.contains(&symbol_name(variable)) {
             return Err(syn::Error::new_spanned(
                 variable,
@@ -215,13 +312,13 @@ fn check_result_atom(schema: &BTreeMap<String, &RelationDecl>, head: &Atom) -> s
             ),
         ));
     }
-    if head.variables.is_empty() {
+    if head.args.is_empty() {
         return Err(syn::Error::new_spanned(
-            &head.variables,
+            &head.args,
             "result atom must have positive arity",
         ));
     }
-    check_distinct_variables("result atom", &head.variables)
+    check_distinct_variables("result atom", &head.args)
 }
 
 fn check_input_atom<'a>(
@@ -237,24 +334,30 @@ fn check_input_atom<'a>(
             ),
         ));
     };
-    if atom.variables.len() != input.arity() {
+    if atom.args.len() != input.arity() {
         return Err(syn::Error::new_spanned(
             atom,
             format!(
                 "body relation `{}` has arity {}; declared arity is {}",
                 atom.relation,
-                atom.variables.len(),
+                atom.args.len(),
                 input.arity()
             ),
         ));
     }
-    check_distinct_variables(&format!("body atom `{}`", atom.relation), &atom.variables)?;
+    check_distinct_variables(&format!("body atom `{}`", atom.relation), &atom.args)?;
     Ok(input)
 }
 
-fn check_distinct_variables(context: &str, variables: &CommaList<Ident>) -> syn::Result<()> {
+fn check_distinct_variables(context: &str, variables: &CommaList<syn::Expr>) -> syn::Result<()> {
     let mut seen = BTreeSet::new();
-    for variable in variables {
+    for argument in variables {
+        let variable = rust::variable(argument).ok_or_else(|| {
+            syn::Error::new_spanned(
+                argument,
+                "computed arguments require the extended CQ semantic contract",
+            )
+        })?;
         if !seen.insert(symbol_name(variable)) {
             return Err(syn::Error::new_spanned(
                 variable,

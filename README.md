@@ -9,6 +9,10 @@ The earlier period terminator is rejected. Syntax types derive parsing and
 token emission; declarations and definitions declare their repetition on the
 corresponding fields.
 
+The feature branch supplies [Rust-expression syntax and free-variable helpers](doc/RUST-EXPRESSION-HELPERS.md)
+for atom arguments, `if`, `let`, negation, and aggregation. Semantic extensions
+and the assigned compiler passes remain student work. Try `cargo run --example free-variables`.
+
 - [Course website](https://pldi.me/modern-query-processing-notes/)
 - [Project contract](https://pldi.me/modern-query-processing-notes/project.html)
 - [Homework repository](https://github.com/StarGazerM/modern-query-processing-homework)

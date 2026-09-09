@@ -146,7 +146,7 @@ fn support_items(source: &cq::Module) -> syn::Result<Vec<syn::Item>> {
             })
         })
         .collect::<syn::Result<Vec<_>>>()?;
-    let output_arity = source.program.query.head.variables.len();
+    let output_arity = source.program.query.head.args.len();
     let bindings = (0..output_arity)
         .map(|column| format_ident!("column{column}", span = Span::call_site()))
         .collect::<Vec<_>>();
@@ -195,7 +195,7 @@ fn is_plain_i32(column_type: &syn::Type) -> bool {
 }
 
 fn parse_output(case: &QueryCase, source: &cq::Module, stdout: &[u8]) -> Result<Vec<Vec<i32>>> {
-    let arity = source.program.query.head.variables.len();
+    let arity = source.program.query.head.args.len();
     let text = std::str::from_utf8(stdout)?;
     let mut rows = Vec::new();
     for (line_number, line) in text.lines().enumerate() {

@@ -43,7 +43,7 @@ pub fn check_module_scenario(module: &cq::Module, scenario: Scenario) -> Result<
         .collect::<BTreeMap<_, _>>();
     let memberships = access_patterns(&atoms)
         .into_iter()
-        .filter(|access| access.key_columns.len() == atoms[access.occurrence].variables.len())
+        .filter(|access| access.key_columns.len() == atoms[access.occurrence].args.len())
         .map(|access| access.occurrence)
         .collect::<Vec<_>>();
     check_scenario_analysis(&atoms, &input_positions, &memberships, scenario)
@@ -72,7 +72,7 @@ pub fn generate_module(
     let accesses = access_patterns(&atoms);
     let membership_occurrences = accesses
         .iter()
-        .filter(|access| access.key_columns.len() == atoms[access.occurrence].variables.len())
+        .filter(|access| access.key_columns.len() == atoms[access.occurrence].args.len())
         .map(|access| access.occurrence)
         .collect::<Vec<_>>();
     check_scenario_analysis(
@@ -509,8 +509,7 @@ struct AccessPattern {
 
 impl AccessPattern {
     fn is_partial(&self, atoms: &[&cq::Atom]) -> bool {
-        !self.key_columns.is_empty()
-            && self.key_columns.len() < atoms[self.occurrence].variables.len()
+        !self.key_columns.is_empty() && self.key_columns.len() < atoms[self.occurrence].args.len()
     }
 }
 
@@ -521,8 +520,7 @@ fn access_patterns(atoms: &[&cq::Atom]) -> Vec<AccessPattern> {
         .enumerate()
         .map(|(occurrence, atom)| {
             let key_columns = atom
-                .variables
-                .iter()
+                .variables()
                 .enumerate()
                 .filter_map(|(column, variable)| {
                     bound_variables
@@ -535,7 +533,7 @@ fn access_patterns(atoms: &[&cq::Atom]) -> Vec<AccessPattern> {
                 key_columns,
                 bound_variables: bound_variables.clone(),
             };
-            bound_variables.extend(atom.variables.iter().map(symbol_name));
+            bound_variables.extend(atom.variables().map(symbol_name));
             access
         })
         .collect()
@@ -546,8 +544,7 @@ fn existential_variables(module: &cq::Module, variables: &[String]) -> Vec<Strin
         .program
         .query
         .head
-        .variables
-        .iter()
+        .variables()
         .map(symbol_name)
         .collect::<BTreeSet<_>>();
     variables
@@ -581,13 +578,12 @@ fn full_bound_occurrences(atoms: &[&cq::Atom]) -> Vec<usize> {
     let mut occurrences = Vec::new();
     for (occurrence, atom) in atoms.iter().enumerate() {
         if atom
-            .variables
-            .iter()
+            .variables()
             .all(|variable| bound.contains(&symbol_name(variable)))
         {
             occurrences.push(occurrence);
         }
-        bound.extend(atom.variables.iter().map(symbol_name));
+        bound.extend(atom.variables().map(symbol_name));
     }
     occurrences
 }
@@ -599,13 +595,12 @@ fn check_distinguishable_memberships(
     for &membership in memberships {
         let target = atoms[membership];
         let relation = symbol_name(&target.relation);
-        let variables = target.variables.iter().map(symbol_name).collect::<Vec<_>>();
+        let variables = target.variables().map(symbol_name).collect::<Vec<_>>();
         if atoms.iter().enumerate().any(|(occurrence, atom)| {
             occurrence != membership
                 && symbol_name(&atom.relation) == relation
                 && atom
-                    .variables
-                    .iter()
+                    .variables()
                     .map(symbol_name)
                     .eq(variables.iter().cloned())
         }) {
@@ -708,7 +703,7 @@ fn prefix_guarantees_key(
     let key = access
         .key_columns
         .iter()
-        .map(|&column| assignment[&symbol_name(&target.variables[column])])
+        .map(|&column| assignment[&symbol_name(target.variables().nth(column).unwrap())])
         .collect::<Vec<_>>();
     Ok(prefix[relation]
         .iter()
@@ -742,7 +737,7 @@ fn disjoint_noise_forces_no_match(
     let mut domains = BTreeMap::<String, (usize, usize)>::new();
     for atom in atoms {
         let relation = relation_position(atom, input_positions)?;
-        for (column, variable) in atom.variables.iter().enumerate() {
+        for (column, variable) in atom.variables().enumerate() {
             let variable = symbol_name(variable);
             if domains
                 .insert(variable.clone(), (relation, column))
@@ -770,8 +765,7 @@ fn project_atom(
     atom: &cq::Atom,
     assignment: &BTreeMap<String, i32>,
 ) -> Result<Vec<i32>, GenerateError> {
-    atom.variables
-        .iter()
+    atom.variables()
         .map(|variable| {
             assignment
                 .get(&symbol_name(variable))
@@ -827,7 +821,7 @@ fn variable_order(atoms: &[&cq::Atom]) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut order = Vec::new();
     for atom in atoms {
-        for variable in &atom.variables {
+        for variable in atom.variables() {
             let name = symbol_name(variable);
             if seen.insert(name.clone()) {
                 order.push(name);
@@ -841,12 +835,7 @@ fn connected_components(atoms: &[&cq::Atom]) -> usize {
     let mut parents = (0..atoms.len()).collect::<Vec<_>>();
     let variable_sets = atoms
         .iter()
-        .map(|atom| {
-            atom.variables
-                .iter()
-                .map(symbol_name)
-                .collect::<BTreeSet<_>>()
-        })
+        .map(|atom| atom.variables().map(symbol_name).collect::<BTreeSet<_>>())
         .collect::<Vec<_>>();
     for left in 0..atoms.len() {
         for right in left + 1..atoms.len() {
@@ -1152,8 +1141,7 @@ mod tests {
                     .program
                     .query
                     .head
-                    .variables
-                    .iter()
+                    .variables()
                     .map(|variable| assignment[&symbol_name(variable)])
                     .collect::<Vec<_>>()
             })
@@ -1194,8 +1182,7 @@ mod tests {
         for row in &relations[&symbol_name(&atom.relation)] {
             let mut extended = assignment.clone();
             let compatible =
-                atom.variables
-                    .iter()
+                atom.variables()
                     .zip(row)
                     .enumerate()
                     .all(|(column, (variable, value))| {
@@ -1255,7 +1242,7 @@ mod tests {
         let candidates = relations[&symbol_name(&atom.relation)]
             .iter()
             .filter(|row| {
-                atom.variables.iter().zip(*row).all(|(variable, value)| {
+                atom.variables().zip(*row).all(|(variable, value)| {
                     assignment
                         .get(&symbol_name(variable))
                         .is_none_or(|bound| bound == value)
@@ -1266,7 +1253,7 @@ mod tests {
         counts[occurrence].insert(candidates.len());
         for row in candidates {
             let mut extended = assignment.clone();
-            for (variable, value) in atom.variables.iter().zip(row) {
+            for (variable, value) in atom.variables().zip(row) {
                 extended.entry(symbol_name(variable)).or_insert(value);
             }
             trace_occurrence(atoms, relations, occurrence + 1, &extended, counts);
@@ -1322,8 +1309,7 @@ mod tests {
                 .program
                 .query
                 .head
-                .variables
-                .iter()
+                .variables()
                 .map(|variable| anti_assignment[&symbol_name(variable)])
                 .collect::<Vec<_>>();
 
@@ -1471,8 +1457,7 @@ mod tests {
                             .program
                             .query
                             .head
-                            .variables
-                            .iter()
+                            .variables()
                             .map(|variable| assignment[&symbol_name(variable)])
                             .collect::<Vec<_>>();
                         *counts.entry(head).or_default() += 1;

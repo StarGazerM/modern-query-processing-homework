@@ -527,37 +527,16 @@ fn format_index_block(module: &index_requirements::Module) -> String {
 
 fn format_atom(atom: &cq::Atom) -> String {
     let variables = atom
-        .variables
+        .args
         .iter()
-        .map(ToString::to_string)
+        .map(|arg| arg.to_token_stream().to_string())
         .collect::<Vec<_>>()
         .join(", ");
     format!("{}({variables})", atom.relation)
 }
 
 fn compact_tokens(value: &impl ToTokens) -> String {
-    let mut text = value.to_token_stream().to_string();
-    for (from, to) in [
-        (" :: ", "::"),
-        (":: ", "::"),
-        (" . ", "."),
-        (" ,", ","),
-        (",::", ", ::"),
-        (" ;", ";"),
-        (" (", "("),
-        ("( ", "("),
-        (" )", ")"),
-        ("[ ", "["),
-        (" ]", "]"),
-        ("< ", "<"),
-        (" >", ">"),
-        ("& ", "&"),
-        ("* ", "*"),
-        (" ! ", "!"),
-    ] {
-        text = text.replace(from, to);
-    }
-    text
+    value.to_token_stream().to_string()
 }
 
 fn format_rust_expression(expression: &syn::Expr) -> String {
@@ -1063,7 +1042,13 @@ mod tests {
 
     #[test]
     fn formatted_query_and_access_bodies_roundtrip_with_semicolons() {
-        for body in ["R(x)", "R(x), R(x)"] {
+        for body in [
+            "R(x)",
+            "R(x), R(x)",
+            r#"R("a , b :: c ( d )"), if accept(x, " ; ")"#,
+            "R(x), let y = (|a, b| a + b)(x, 1), !R(f(y))",
+            "R(x), agg y = (factory(config))(value) in R(f(x, value))",
+        ] {
             let program: cq::Program = syn::parse_str(&format!(
                 "struct P; relation R(a:i32); answer(x) :- {body};"
             ))

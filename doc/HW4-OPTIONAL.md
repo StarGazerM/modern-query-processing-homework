@@ -5,7 +5,7 @@ Homeworks 1–3. A team works on it only when assigned the released
 `pick-one/negation-aggregation` branch; the normal common-core build and grading
 commands do not run it. Start from the released reference branch, not from
 unfinished basic pass bodies. The extension is harder because you
-extend the existing source IR, its language contract, the named relational
+extend the source language contract, the named relational
 algebra fragment, the index-requirement relation, and the physical Rust lowering.
 Its relationship to push, Rayon, multi-query, and arbitrary-type options is
 recorded in the
@@ -16,15 +16,16 @@ Comments containing `OPTIONAL HW4` mark every production edit site:
 rg -n "OPTIONAL HW4" crates/*/src
 ```
 
-Students extend the existing `cq::BodyItem` used by `cq::Query`; there is no
-second query parser or second query macro. This is a cumulative checkpoint:
-students extend the production grammar, contracts, and the same three typed
+The existing `cq::BodyItem` used by `cq::Query` already supplies the clause
+syntax; there is no second query parser or second query macro. This is a
+cumulative checkpoint: students extend the contracts and the same three typed
 passes, and completed extended queries continue to enter through
 `mini_linq!`. The legacy-named `hw4` Cargo feature gates only this extension's test targets; it
 does not install production syntax, swap a pass implementation, or select a
-backend. The six numbered comments mark student work. You must decide how the
-new variants and their payloads are represented as nominal Syn objects and be
-able to explain that representation.
+backend. Syntax for the original first implementation site is now supplied;
+the remaining numbered sites mark semantic work. The supplied
+[Rust-expression helpers](RUST-EXPRESSION-HELPERS.md) expose lexical free names
+and pattern bindings without implementing CQ scope, planning, or lowering.
 
 ## Why this syntax
 
@@ -103,35 +104,39 @@ nonempty, the result is empty. If both inputs are empty, the result is `{(0,)}`.
 This example requires the staff-supplied logical `Unit` source described
 below; students do not invent a dummy positive relation.
 
-## Surface grammar to add
+## Supplied surface grammar
 
-Extend the existing query body's element type:
+The existing parser accepts:
 
 ```text
 Query          ::= Atom ":-" BodyItem ("," BodyItem)* ";"
-BodyItem       ::= Atom | Negation | Aggregate
-Negation       ::= "!" PatternAtom
-Aggregate      ::= "agg" Ident "=" RustPath "(" [Ident] ")"
-                   "in" PatternAtom
-PatternAtom    ::= Ident "(" [PatternTerm ("," PatternTerm)* [","]] ")"
-PatternTerm    ::= Ident | "_"
+BodyItem       ::= Atom | "if" RustExpr
+                 | "let" RustPat [":" RustType] "=" RustExpr
+                 | Negation | Aggregate
+Atom           ::= Ident "(" [RustExpr ("," RustExpr)* [","]] ")"
+Negation       ::= "!" Atom
+Aggregate      ::= "agg" RustPat "=" Aggregator
+                   "(" [Ident ("," Ident)* [","]] ")" "in" Atom
+Aggregator     ::= RustPath | "(" RustExpr ")"
 ```
 
-The required aggregator is the simple path `sum` with exactly one aggregate
-argument. Keeping the function as a `syn::Path` preserves Ascent's surface
-shape and leaves room for `min`, `max`, and library aggregators later. Do not
-parse the whole body item as an untyped token stream.
+This homework's required semantic subset uses the simple path `sum` with
+exactly one aggregate-local binder, a fresh bare output variable, and input
+arguments that are bare variables or `_`. The supplied syntax is broader:
+the parenthesized aggregator and all atom arguments retain native `syn::Expr`
+values. Supporting that broader syntax in execution is a separate extension.
 
 `agg` becomes a body-clause keyword. A relation whose Rust identifier is
 literally `agg` must therefore use the raw spelling `r#agg`, consistent with
 the existing raw-identifier policy.
 
-Add `Negation` and `Aggregate` variants to the existing `BodyItem` enum, with
-separate nominal payload objects for `Negation`, `Aggregate`, `PatternAtom`,
-and `PatternTerm`. Update `Query`'s EBNF/documentation to name `BodyItem`. The
-exact Rust field layout is your design decision. Every new syntax object must
-derive `Parse` and `ToTokens`, and the complete module must still round-trip
-structurally.
+`Negation` and `Aggregate` are nominal payloads in the existing `BodyItem`.
+All syntax objects derive `Parse` and `ToTokens`; native Syn parses Rust
+leaves. Reuse `Atom`, `cq::rust::variable`, and `cq::rust::bindings` when
+checking the required subset. For expression extensions, use
+`free_variables(expr).dependencies(environment)` to retain logical inputs,
+including conservative dependencies of opaque macros. The caller must still
+establish the correct CQ environment and aggregate-local scope.
 
 ## Local language contract
 
@@ -499,7 +504,7 @@ operator language or special emitter.
 
 | Marker | File | Required change |
 |---|---|---|
-| `STUDENT 1/6 (IR)` | `crates/cq-ir/src/cq.rs` | Add the nominal body variants and syntax objects to the existing CQ IR |
+| Supplied syntax (former `STUDENT 1/6`) | `crates/cq-ir/src/cq.rs` and `cq/rust.rs` | Read the derived clause syntax and lexical helpers; no parser implementation is assigned |
 | `STUDENT 2/6 (WF)` | `crates/cq-ir/src/cq.rs` | Implement the left-to-right safety rules |
 | `STUDENT 3/6 (LOGICAL)` | `crates/cq-ir/src/relational_plan.rs`, `crates/cq-compiler/src/pass_contracts.rs`, and `passes.rs` | Add `AntiSemijoin`/`AggregateApply`, their inferred-heading rules, and the exact extended-CQ-to-plan lowering; reuse the supplied `Unit` |
 | `STUDENT 4/6 (INDEX)` | `crates/cq-compiler/src/pass_contracts.rs` and `passes.rs` | Extend canonical key derivation over the complete RelationalPlan |
@@ -511,7 +516,8 @@ trait, a dynamic query interpreter, or a second storage/access descriptor IR.
 
 ## Tests and workflow
 
-Complete the syntax, local contracts, and logical operators first:
+The syntax and lexical helper tests run in the ordinary suite. Complete the
+local contracts and logical operators first:
 
 ```text
 cargo test -p cq-ir --features hw4 --test hw4_optional

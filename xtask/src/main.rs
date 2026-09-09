@@ -136,7 +136,7 @@ fn golden(
                 cq_workloads::dataset::write_result_rows(
                     &path,
                     &expected,
-                    module.program.query.head.variables.len(),
+                    module.program.query.head.args.len(),
                 )?;
                 println!(
                     "wrote {:<28} {:<11} {}",
@@ -145,7 +145,7 @@ fn golden(
                     path.display()
                 );
             } else {
-                let arity = module.program.query.head.variables.len();
+                let arity = module.program.query.head.args.len();
                 let tracked = cq_workloads::dataset::read_result_rows(&path, arity)?;
                 compare_rows(
                     case,
